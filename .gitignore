@@ -210,5 +210,7 @@ __marimo__/
 data/raw/
 data/processed/
 
+# PyCharm
+.idea/
 
 
