@@ -1,0 +1,60 @@
+name: automated-retraining
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_retrain:
+        description: "Force retraining (true/false)"
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 6 * * *"   # every day at 06:00 UTC
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Decide if retraining is needed
+        id: gate
+        run: |
+          FORCE="${{ github.event.inputs.force_retrain }}"
+          if [ "$FORCE" = "true" ]; then
+            python src/retraining/should_retrain.py --force || true
+            echo "retrain=true" >> $GITHUB_OUTPUT
+          else
+            python src/retraining/should_retrain.py && echo "retrain=true" >> $GITHUB_OUTPUT || echo "retrain=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Retrain model
+        if: steps.gate.outputs.retrain == 'true'
+        run: |
+          python src/retraining/retrain.py
+
+      - name: Upload candidate model (if exists)
+        if: steps.gate.outputs.retrain == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrain-artifacts
+          path: |
+            models/**
+            mlruns/**
+            reports/**
+          if-no-files-found: warn
+
+      - name: Skip message
+        if: steps.gate.outputs.retrain != 'true'
+        run: echo "No retraining needed today ✅"

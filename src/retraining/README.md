@@ -1,34 +1,3 @@
-# Customer Churn MLOps Pipeline
-
-This project implements an end-to-end MLOps pipeline for customer churn prediction
-using the Telco Customer Churn dataset.
-
-## Objectives
-- Train and evaluate a churn prediction model
-- Deploy the model via a REST API
-- Monitor model performance and data drift
-- Automate retraining when performance degrades
-
-## Tech Stack
-- Python, Scikit-learn
-- FastAPI
-- Docker
-- GitHub Actions
-- MLflow
-- Evidently
-- Airflow (retraining orchestration)
-
-- Python >= 3.10 (tested with Python 3.11)
-
-## Monitoring (Production)
-
-Production-like monitoring is implemented by logging batch scoring statistics to MLflow:
-- batch_size
-- average churn probability
-- p95 churn probability
-- predicted churn rate
-
-This provides a lightweight monitoring baseline. Drift detection and alerting would be the next step (e.g. Evidently).
 # Retraining Strategy (Lifecycle)
 
 This project is designed to support the full ML lifecycle: training → deployment → monitoring → retraining.
@@ -60,4 +29,3 @@ Retraining is triggered when at least one condition is met:
 ## Notes
 - Automated orchestration (Airflow/Kubeflow) is not implemented here (future work),
   but the retraining script is structured to be schedulable as a job.
-
