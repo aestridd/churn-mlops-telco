@@ -1,63 +1,209 @@
-# Customer Churn MLOps Pipeline
+📊 Telco Churn — End-to-End MLOps Pipeline
+🎯 Project Overview
 
-This project implements an end-to-end MLOps pipeline for customer churn prediction
-using the Telco Customer Churn dataset.
+This project implements a production-ready MLOps pipeline for customer churn prediction, with a strong focus on business impact, automation, and usability by non-technical teams.
+The goal is not only to train a churn model, but to cover the entire machine learning lifecycle, from data preparation to deployment, monitoring, and automated retraining.
 
-## Objectives
-- Train and evaluate a churn prediction model
-- Deploy the model via a REST API
-- Monitor model performance and data drift
-- Automate retraining when performance degrades
+🧠 Business Problem
 
-## Tech Stack
-- Python, Scikit-learn
-- FastAPI
-- Docker
-- GitHub Actions
-- MLflow
-- Evidently
-- Airflow (retraining orchestration)
+In highly competitive B2B and B2C markets, retaining high-value customers is critical.
+However, commercial teams often lack actionable prioritization tools to decide which customers to focus on first.
 
-- Python >= 3.10 (tested with Python 3.11)
+This project provides:
+- a churn prediction model
+- a REST API for scoring customers
+- a business-oriented UI to prioritize retention actions
 
-## Monitoring (Production)
+🧱 Project Architecture
 
-Production-like monitoring is implemented by logging batch scoring statistics to MLflow:
-- batch_size
-- average churn probability
-- p95 churn probability
-- predicted churn rate
+The pipeline covers the full MLOps lifecycle:
+- Data preparation & feature engineering
+- Model training & evaluation
+- Experiment tracking & versioning
+- REST API deployment
+- Business-oriented web UI
+- Monitoring & data drift detection
+- Automated retraining
+- Model promotion & rollback strategy
 
-This provides a lightweight monitoring baseline. Drift detection and alerting would be the next step (e.g. Evidently).
-# Retraining Strategy (Lifecycle)
+📁 Repository Structure
+churn-mlops-telco/
+├── src/
+│   ├── api/                 # FastAPI inference service
+│   ├── app_web.py           # Streamlit business UI
+│   ├── retraining/          # Automated retraining logic
+│   └── monitoring/          # Drift detection (Evidently)
+│
+├── models/
+│   └── production_pipeline.joblib   # Single production model
+│
+├── data/
+│   └── new/                 # Placeholder for new incoming data
+│
+├── notebooks/
+│   ├── eda/
+│   ├── ml/
+│   ├── mlflow/
+│   └── test_api/
+│
+├── .github/workflows/
+│   └── retrain.yml          # GitHub Actions retraining workflow
+│
+├── requirements.txt
+├── README.md
+└── run_project.ps1
 
-This project is designed to support the full ML lifecycle: training → deployment → monitoring → retraining.
+🤖 Modeling
 
-## When to retrain?
-Retraining is triggered when at least one condition is met:
+Task: Binary classification (churn / non-churn)
+Models tested:
+Logistic Regression
+Random Forest
+Gradient Boosting
+Final model: Logistic Regression
+class_weight="balanced"
+Optimized for recall on churn class
+Business threshold: 0.40
+The final pipeline includes:
+preprocessing (ColumnTransformer)
+feature engineering
+model inference
 
-1) **New labeled data is available**
-- A new CSV dataset is provided with the target column (Churn).
+All serialized into a single pipeline artifact.
 
-2) **Performance degradation**
-- Example rule: churn recall < 0.70 on a recent evaluation dataset.
+📈 Experiment Tracking & Versioning
 
-3) **Data drift detection** (future work)
-- If feature distributions significantly shift compared to training data.
+MLflow is used for:
+- experiment tracking
+- metrics logging
+- artifact storage
+- retraining traceability
 
-## Retraining steps
-1) Load the latest labeled dataset
-2) Split train/test
-3) Train a new model using the same preprocessing pipeline approach
-4) Evaluate with business-driven metrics (ROC-AUC + churn recall)
-5) Log metrics, artifacts and the model to MLflow
-6) Promote the new model if it improves the selected KPI (churn recall)
+Experiments:
 
-## Model promotion rule (simple)
-- Promote if: `recall_churn_new >= recall_churn_current` AND `roc_auc_new >= 0.82`
-- Otherwise: keep the current production model
+- telco-churn-final — training
+- telco-churn-retraining — automated retraining
+- telco-churn-prod — production monitoring
 
-## Notes
-- Automated orchestration (Airflow/Kubeflow) is not implemented here (future work),
-  but the retraining script is structured to be schedulable as a job.
+Only one production model is versioned in the repository:
 
+models/production_pipeline.joblib
+
+🚀 API — FastAPI
+Endpoints
+
+GET /health
+Health check & configuration overview
+
+POST /predict
+Predict churn for a single customer (JSON)
+
+POST /predict_csv
+Batch scoring via CSV upload
+
+Features
+
+Stateless & scalable API
+
+Business threshold applied server-side
+
+Batch size safety limit
+
+Latency & throughput monitoring
+
+Optional MLflow logging
+
+🖥️ Business UI — Streamlit
+
+A non-technical, commercial-friendly interface:
+
+CSV upload
+
+Batch scoring via API
+
+Client prioritization
+
+Risk classification:
+
+🔴 High
+🟠 Medium
+🟢 Low
+
+KPI counters
+
+Filtering (high-risk only)
+
+Export only selected customers
+
+📊 Monitoring & Drift Detection
+
+Evidently used for data drift detection
+- Reference dataset built from training data
+- Production batches optionally stored
+- Drift reports generated as HTML
+- Drift signals used as retraining triggers
+
+🔁 Automated Retraining
+
+Retraining is automated using GitHub Actions (lightweight, no infrastructure overhead).
+
+Triggers:
+
+New data detected in data/new/
+
+Data drift detected
+
+Significant metric degradation
+
+Manual trigger (workflow_dispatch)
+
+Workflow:
+
+Retrain model
+
+Log metrics to MLflow
+
+Save candidate model
+
+Promote or rollback based on business rules
+
+▶️ Quickstart
+1. Install dependencies
+pip install -r requirements.txt
+
+2. Start the API
+uvicorn src.api.main:app --reload
+
+3. Start the UI
+streamlit run src/app_web.py
+
+⚙️ Environment Variables (optional)
+API_URL=http://localhost:8000
+BUSINESS_THRESHOLD=0.40
+MAX_BATCH_ROWS=50000
+MLFLOW_TRACKING_URI=file:///path/to/mlruns
+
+✅ Key Design Choices
+
+Simplicity over over-engineering
+
+No Kubernetes
+
+No Docker (by design)
+
+GitHub Actions instead of Airflow
+
+Single production model
+
+Clear separation between training, inference, and business usage
+
+📌 Final Notes
+
+This project is designed as:
+
+- a realistic production-grade MLOps example
+- a portfolio-ready project
+- a foundation adaptable to real company data
+
+✨ Status: Production-ready
+✨ Focus: Business value + MLOps best practices
