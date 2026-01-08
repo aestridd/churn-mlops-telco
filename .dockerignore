@@ -1,0 +1,40 @@
+# --- Python / venv ---
+.venv
+.venv1
+venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Notebooks / caches ---
+.ipynb_checkpoints/
+*.ipynb
+
+# --- Data (souvent énorme) ---
+data/
+*.csv
+*.parquet
+*.feather
+
+# --- MLflow / Evidently outputs ---
+mlruns/
+evidently_reports/
+reports/
+*.html
+
+# --- Models: ignore tout SAUF ton modèle prod ---
+models/*
+!models/production_pipeline.joblib
+
+# --- Git / IDE ---
+.git/
+.idea/
+.vscode/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log

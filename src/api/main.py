@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any
 
+import numpy as np
 import joblib
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -31,7 +32,6 @@ MODEL_PATH = Path(os.getenv("MODEL_PATH", str(DEFAULT_MODEL_PATH)))
 BUSINESS_THRESHOLD = float(os.getenv("BUSINESS_THRESHOLD", "0.40"))
 
 MAX_BATCH_ROWS = int(os.getenv("MAX_BATCH_ROWS", "50000"))  # safety limit
-TOP_K_RETURN = int(os.getenv("TOP_K_RETURN", "50"))
 
 SAVE_PROD_BATCHES = os.getenv("SAVE_PROD_BATCHES", "true").lower() == "true"
 PROD_BATCH_DIR = Path(os.getenv("PROD_BATCH_DIR", str(PROJECT_ROOT / "data" / "production")))
@@ -45,7 +45,7 @@ pipeline: Optional[Any] = None
 
 
 def _risk_level(p: float) -> str:
-    # Match your Streamlit UX: High / Medium / Low
+    # Business labels for UI: High / Medium / Low
     if p >= 0.70:
         return "High"
     if p >= BUSINESS_THRESHOLD:
@@ -66,7 +66,6 @@ def load_assets() -> None:
 
     pipeline = joblib.load(MODEL_PATH)
 
-    # Configure MLflow only if explicitly enabled
     if _mlflow_enabled():
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
@@ -80,7 +79,6 @@ def health():
         "model_path": str(MODEL_PATH),
         "threshold": BUSINESS_THRESHOLD,
         "max_batch_rows": MAX_BATCH_ROWS,
-        "top_k_return": TOP_K_RETURN,
         "save_prod_batches": SAVE_PROD_BATCHES,
         "prod_batch_dir": str(PROD_BATCH_DIR),
         "mlflow_enabled": _mlflow_enabled(),
@@ -114,19 +112,24 @@ def predict(req: PredictRequest):
 
 @app.post("/predict_csv")
 async def predict_csv(file: UploadFile = File(...)):
+    """
+    Batch scoring endpoint.
+
+    Returns:
+      - summary: KPI metrics computed over the full uploaded batch
+      - customers: all scored customers, sorted by customerID
+    """
     if pipeline is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
 
     if not hasattr(pipeline, "predict_proba"):
         raise HTTPException(status_code=500, detail="Loaded model does not support predict_proba")
 
-    # lightweight file type guard
     if file.filename and not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Please upload a .csv file")
 
     t0 = time.perf_counter()
 
-    # --- Load CSV ---
     try:
         df = pd.read_csv(file.file)
     except Exception as e:
@@ -136,7 +139,6 @@ async def predict_csv(file: UploadFile = File(...)):
     if batch_size_raw == 0:
         raise HTTPException(status_code=400, detail="Empty CSV")
 
-    # --- Scalability safety: batch size limit ---
     if batch_size_raw > MAX_BATCH_ROWS:
         raise HTTPException(
             status_code=413,
@@ -146,7 +148,6 @@ async def predict_csv(file: UploadFile = File(...)):
             ),
         )
 
-    # --- Optional: persist incoming batch for monitoring/audit ---
     saved_batch_path: Optional[Path] = None
     if SAVE_PROD_BATCHES:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -155,26 +156,25 @@ async def predict_csv(file: UploadFile = File(...)):
         try:
             df.to_csv(saved_batch_path, index=False)
         except Exception:
-            saved_batch_path = None  # never fail scoring due to persistence
+            saved_batch_path = None
 
-    # --- Separate customer identifier (if present) ---
+    # Separate ID column if present
     id_candidates = ["customerID", "client_id", "id_client"]
     id_col = next((c for c in id_candidates if c in df.columns), None)
     X = df.drop(columns=[id_col]) if id_col else df
 
-    # --- Predict (model never sees ID column) ---
     try:
         proba = pipeline.predict_proba(X)[:, 1]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Prediction failed: {e}")
 
-    # --- Build business result ---
+    # Build business result
     result = df.copy()
     result["churn_probability"] = proba
     result["churn_pred"] = (result["churn_probability"] >= BUSINESS_THRESHOLD).astype(int)
     result["risk_level"] = result["churn_probability"].apply(_risk_level)
 
-    # --- Monitoring metrics ---
+    # Monitoring metrics
     batch_size = int(len(result))
     avg_proba = float(result["churn_probability"].mean())
     p95_proba = float(result["churn_probability"].quantile(0.95))
@@ -201,11 +201,35 @@ async def predict_csv(file: UploadFile = File(...)):
                 if saved_batch_path is not None:
                     mlflow.log_param("saved_batch_path", str(saved_batch_path))
         except Exception:
-            # Never fail API responses due to monitoring
             pass
 
-    # --- Business sort (highest risk first) ---
-    result = result.sort_values("churn_probability", ascending=False)
+    # Output: business columns only
+    cols = [c for c in [id_col, "churn_probability", "churn_pred", "risk_level"] if c is not None]
+    out = result[cols].copy()
 
-    # Return top-K for UI usability + bandwidth control
-    return JSONResponse(result.head(TOP_K_RETURN).to_dict(orient="records"))
+    if id_col and id_col != "customerID":
+        out = out.rename(columns={id_col: "customerID"})
+
+    # JSON-safe
+    out = out.replace([np.inf, -np.inf], np.nan)
+    out = out.where(pd.notnull(out), None)
+
+    # Sort by ID by default
+    if "customerID" in out.columns:
+        out["customerID"] = out["customerID"].astype(str)
+        out = out.sort_values("customerID", ascending=True)
+
+    # Summary over full batch
+    risk = out["risk_level"].astype(str)
+    payload = {
+        "summary": {
+            "n_scored": int(len(out)),
+            "high": int(risk.str.contains("High").sum()),
+            "medium": int(risk.str.contains("Medium").sum()),
+            "low": int(risk.str.contains("Low").sum()),
+            "avg_proba": float(pd.to_numeric(out["churn_probability"], errors="coerce").mean()),
+        },
+        "customers": out.to_dict(orient="records"),
+    }
+
+    return JSONResponse(payload)
