@@ -1,209 +1,195 @@
-📊 Telco Churn — End-to-End MLOps Pipeline
-🎯 Project Overview
+TELCO CHURN PREDICTOR
+END-TO-END MLOPS PROJECT
 
-This project implements a production-ready MLOps pipeline for customer churn prediction, with a strong focus on business impact, automation, and usability by non-technical teams.
-The goal is not only to train a churn model, but to cover the entire machine learning lifecycle, from data preparation to deployment, monitoring, and automated retraining.
+==================================================
 
-🧠 Business Problem
+PROJECT OVERVIEW
 
-In highly competitive B2B and B2C markets, retaining high-value customers is critical.
-However, commercial teams often lack actionable prioritization tools to decide which customers to focus on first.
+This project demonstrates a production-ready machine learning application for predicting customer churn in the telecom industry.
 
-This project provides:
-- a churn prediction model
-- a REST API for scoring customers
-- a business-oriented UI to prioritize retention actions
+It showcases a complete MLOps pipeline:
 
-🧱 Project Architecture
+Model training
 
-The pipeline covers the full MLOps lifecycle:
-- Data preparation & feature engineering
-- Model training & evaluation
-- Experiment tracking & versioning
-- REST API deployment
-- Business-oriented web UI
-- Monitoring & data drift detection
-- Automated retraining
-- Model promotion & rollback strategy
+API deployment
 
-📁 Repository Structure
-churn-mlops-telco/
-├── src/
-│   ├── api/                 # FastAPI inference service
-│   ├── app_web.py           # Streamlit business UI
-│   ├── retraining/          # Automated retraining logic
-│   └── monitoring/          # Drift detection (Evidently)
-│
-├── models/
-│   └── production_pipeline.joblib   # Single production model
-│
-├── data/
-│   └── new/                 # Placeholder for new incoming data
-│
-├── notebooks/
-│   ├── eda/
-│   ├── ml/
-│   ├── mlflow/
-│   └── test_api/
-│
-├── .github/workflows/
-│   └── retrain.yml          # GitHub Actions retraining workflow
-│
-├── requirements.txt
-├── README.md
-└── run_project.ps1
+UI integration
 
-🤖 Modeling
+Docker containerization
 
-Task: Binary classification (churn / non-churn)
-Models tested:
-Logistic Regression
-Random Forest
-Gradient Boosting
-Final model: Logistic Regression
-class_weight="balanced"
-Optimized for recall on churn class
-Business threshold: 0.40
-The final pipeline includes:
-preprocessing (ColumnTransformer)
-feature engineering
-model inference
+Cloud deployment with auto-redeploy
 
-All serialized into a single pipeline artifact.
+The project is designed as a portfolio-grade example of real-world ML deployment practices.
 
-📈 Experiment Tracking & Versioning
+LIVE DEMO
 
-MLflow is used for:
-- experiment tracking
-- metrics logging
-- artifact storage
-- retraining traceability
+API (FastAPI + Swagger):
+https://telco-churn-predictor-ibeh.onrender.com/docs
 
-Experiments:
+Health Check:
+https://telco-churn-predictor-ibeh.onrender.com/health
 
-- telco-churn-final — training
-- telco-churn-retraining — automated retraining
-- telco-churn-prod — production monitoring
+UI (Streamlit):
+https://churn-web.onrender.com/
 
-Only one production model is versioned in the repository:
+OBJECTIVE
 
+Customer churn is a major business issue in telecom.
+
+The goal of this project is to:
+
+Predict churn probability for customers
+
+Support batch predictions via CSV upload
+
+Provide a simple interface for non-technical users
+
+Demonstrate robust and reproducible ML deployment
+
+MACHINE LEARNING MODEL
+
+Task: Binary classification (Churn / No Churn)
+
+Model:
+
+Logistic Regression (scikit-learn)
+
+Pipeline components:
+
+SimpleImputer
+
+StandardScaler
+
+OneHotEncoder
+
+ColumnTransformer
+
+Model serialization:
+
+joblib
+
+Production model file:
 models/production_pipeline.joblib
 
-🚀 API — FastAPI
-Endpoints
+Important note:
+Special care was taken to align scikit-learn versions between training and inference, a common real-world MLOps issue.
+
+ARCHITECTURE
+
+Streamlit UI --> FastAPI API --> ML Pipeline
+
+UI and API are deployed as separate services
+
+Communication via HTTP
+
+Fully containerized with Docker
+
+DOCKER & DEPLOYMENT
+
+Docker:
+
+Dockerfile.api for FastAPI service
+
+Dockerfile.web for Streamlit UI
+
+.dockerignore used to keep images lightweight
+
+Production model explicitly included in the image
+
+Deployment:
+
+Hosted on Render
+
+Docker-based web services
+
+Auto-deploy enabled on main branch
+
+Health check endpoint configured (/health)
+
+API ENDPOINTS
 
 GET /health
-Health check & configuration overview
-
-POST /predict
-Predict churn for a single customer (JSON)
+Returns service status.
+Response:
+{ "status": "ok" }
 
 POST /predict_csv
-Batch scoring via CSV upload
 
-Features
+Upload a CSV file
 
-Stateless & scalable API
+Returns churn predictions and probabilities
 
-Business threshold applied server-side
+Accepts multipart/form-data
 
-Batch size safety limit
+Testable directly via Swagger UI
 
-Latency & throughput monitoring
+STREAMLIT UI
 
-Optional MLflow logging
+The Streamlit application allows users to:
 
-🖥️ Business UI — Streamlit
+Upload a CSV file
 
-A non-technical, commercial-friendly interface:
+Send it to the API
 
-CSV upload
+Display churn predictions interactively
 
-Batch scoring via API
+The API endpoint is configured via environment variable:
+API_URL=https://telco-churn-predictor-ibeh.onrender.com
 
-Client prioritization
+TECH STACK
 
-Risk classification:
+Python 3.11
 
-🔴 High
-🟠 Medium
-🟢 Low
+scikit-learn 1.3.0
 
-KPI counters
+FastAPI
 
-Filtering (high-risk only)
+Streamlit
 
-Export only selected customers
+Docker
 
-📊 Monitoring & Drift Detection
+Render
 
-Evidently used for data drift detection
-- Reference dataset built from training data
-- Production batches optionally stored
-- Drift reports generated as HTML
-- Drift signals used as retraining triggers
+joblib
 
-🔁 Automated Retraining
+pandas
 
-Retraining is automated using GitHub Actions (lightweight, no infrastructure overhead).
+numpy
 
-Triggers:
+LOCAL DEVELOPMENT
 
-New data detected in data/new/
+Run API locally:
+docker build -f Dockerfile.api -t churn-api .
+docker run -p 8000:8000 -e PORT=8000 churn-api
 
-Data drift detected
+API available at:
+http://localhost:8000/docs
 
-Significant metric degradation
+Run UI locally:
+docker build -f Dockerfile.web -t churn-web .
+docker run -p 8501:8501 -e PORT=8501 -e API_URL=http://localhost:8000
+ churn-web
 
-Manual trigger (workflow_dispatch)
+UI available at:
+http://localhost:8501
 
-Workflow:
+MLOPS LESSONS HIGHLIGHTED
 
-Retrain model
+Version mismatches between training and inference can break production
 
-Log metrics to MLflow
+Pinning ML dependencies is critical
 
-Save candidate model
+Separating API and UI improves robustness
 
-Promote or rollback based on business rules
+Health checks are essential for cloud deployment
 
-▶️ Quickstart
-1. Install dependencies
-pip install -r requirements.txt
+Auto-deploy enables simple CI/CD for ML services
 
-2. Start the API
-uvicorn src.api.main:app --reload
+PROJECT STATUS
 
-3. Start the UI
-streamlit run src/app_web.py
+Model trained: YES
+API deployed: YES
+UI deployed: YES
+End-to-end pipeline functional: YES
 
-⚙️ Environment Variables (optional)
-API_URL=http://localhost:8000
-BUSINESS_THRESHOLD=0.40
-MAX_BATCH_ROWS=50000
-MLFLOW_TRACKING_URI=file:///path/to/mlruns
-
-✅ Key Design Choices
-
-Simplicity over over-engineering
-
-No Kubernetes
-
-No Docker (by design)
-
-GitHub Actions instead of Airflow
-
-Single production model
-
-Clear separation between training, inference, and business usage
-
-📌 Final Notes
-
-This project is designed as:
-
-- a realistic production-grade MLOps example
-- a portfolio-ready project
-- a foundation adaptable to real company data
-
-✨ Status: Production-ready
-✨ Focus: Business value + MLOps best practices
+==================================================
